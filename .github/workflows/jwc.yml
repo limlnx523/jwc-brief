@@ -1,0 +1,65 @@
+name: 教务处简报
+
+# 跑在 GitHub 的服务器上，不依赖自己的电脑是否开机。
+# cron 用 UTC：下面两个分别是北京时间 12:30 和 21:30。
+on:
+  schedule:
+    - cron: "30 4 * * *"
+    - cron: "30 13 * * *"
+  workflow_dispatch:
+    inputs:
+      test_push:
+        description: 发一条测试推送（推送最近 1 天的条目）
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: jwc-brief
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 检查教务处并推送
+        if: ${{ !inputs.test_push }}
+        env:
+          JWC_PUSH_CHANNEL: serverchan
+          JWC_PUSH_TOKEN: ${{ secrets.JWC_PUSH_TOKEN }}
+          JWC_MAIL_HOST: ${{ secrets.JWC_MAIL_HOST }}
+          JWC_MAIL_USER: ${{ secrets.JWC_MAIL_USER }}
+          JWC_MAIL_PASS: ${{ secrets.JWC_MAIL_PASS }}
+          JWC_MAIL_TO: ${{ secrets.JWC_MAIL_TO }}
+        run: python fetch_jwc.py --no-vault --out briefing.md
+
+      - name: 测试推送（手动触发）
+        if: ${{ inputs.test_push }}
+        env:
+          JWC_PUSH_CHANNEL: serverchan
+          JWC_PUSH_TOKEN: ${{ secrets.JWC_PUSH_TOKEN }}
+        run: python fetch_jwc.py --days 1 --no-vault --out briefing.md
+
+      - name: 保存状态（同时避免 GitHub 因长期无活动停掉定时任务）
+        run: |
+          git config user.name "jwc-bot"
+          git config user.email "jwc-bot@users.noreply.github.com"
+          git add state.json
+          if ! git diff --cached --quiet; then
+            git commit -m "state update $(date -u +%Y-%m-%d_%H:%MZ)"
+            git push
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: briefing
+          path: briefing.md
+          retention-days: 30
