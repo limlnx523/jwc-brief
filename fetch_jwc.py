@@ -22,7 +22,7 @@ import sys
 import time
 import urllib.parse
 import urllib.request
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from html import unescape
 
 NL = chr(10)
@@ -121,6 +121,25 @@ COLUMNS = [
 PRIORITY = dict((slug, pri) for slug, _n, pri in COLUMNS)
 HOT_COLUMNS = ("文件通知", "公告公示", "转专业及转学", "选课管理")
 
+# GitHub Actions 的机器是 UTC，简报与时段一律按北京时间算
+TZ_CN = timezone(timedelta(hours=8))
+
+
+def now_cn():
+    return datetime.now(TZ_CN)
+
+
+def slot_of(now):
+    """返回 (时段唯一标识, 显示名)。07:00-17:00 = 当天早报，其余 = 当天晚报；
+    凌晨 0-7 点归到前一天的晚报（GitHub 跑晚了几小时、跨过午夜时不会算错日期）。
+    每个时段只推一次，靠这个标识去重，所以哪一次先跑成功就由哪一次发。"""
+    if now.hour < 7:
+        prev = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+        return prev + "-evening", "晚报"
+    if now.hour < 17:
+        return now.strftime("%Y-%m-%d") + "-morning", "早报"
+    return now.strftime("%Y-%m-%d") + "-evening", "晚报"
+
 # 与本人学业规划直接相关的关键词 (命中则放到简报最前面)
 KEYWORDS = [
     "转专业", "转学", "选课", "补选", "退课", "退选", "学籍", "学分", "成绩",
@@ -192,7 +211,7 @@ def parse_items(html, column):
         d = DATE_RE.search(chunk)
         date = d.group(1).strip() if d else ""
         if len(date) == 5:  # MM-DD, 补全年份
-            date = "%d-%s" % (datetime.now().year, date)
+            date = "%d-%s" % (now_cn().year, date)
         if href.startswith("/"):
             href = BASE + href
         title = unescape(" ".join(title.split()))
@@ -253,9 +272,26 @@ def join_lines(lines):
     return NL.join(lines)
 
 
-def build_report(new_items, quiet_first_run, total_scanned):
-    now = datetime.now()
-    slot = "早报" if now.hour < 12 else "晚报"
+def build_title(slot_label, new_items, recent):
+    """免费推送渠道的卡片只显示标题，所以把最关键那条写进标题（≤ 32 字）。"""
+    if new_items:
+        prefix = "教务处%s：%d条｜" % (slot_label, len(new_items))
+        top = sorted(new_items, key=lambda x: 0 if is_relevant(x) else 1)[0]
+        head = top["title"]
+    else:
+        prefix = "教务处%s：无新增｜" % slot_label
+        head = recent[0]["title"] if recent else ""
+    budget = 32 - len(prefix)
+    if budget <= 0:
+        return prefix[:32]
+    if len(head) > budget:
+        head = head[:budget - 1] + "…"
+    return prefix + head
+
+
+def build_report(new_items, quiet_first_run, total_scanned, recent=None):
+    now = now_cn()
+    _slot_key, slot = slot_of(now)
     lines = [
         "# 教务处简报 · %s %s" % (now.strftime("%Y-%m-%d"), slot),
         "",
@@ -267,6 +303,10 @@ def build_report(new_items, quiet_first_run, total_scanned):
         return join_lines(lines)
     if not new_items:
         lines += ["**本次没有新增文件 / 通知。**", ""]
+        if recent:
+            lines += ["最近发布（供参考）：", ""]
+            lines += [bullet(i) for i in recent[:5]]
+            lines.append("")
         return join_lines(lines)
 
     hot = [i for i in new_items if is_relevant(i)]
@@ -286,7 +326,7 @@ def build_report(new_items, quiet_first_run, total_scanned):
 def write_vault(report):
     if not os.path.isdir(VAULT_DIR):
         os.makedirs(VAULT_DIR)
-    now = datetime.now()
+    now = now_cn()
     day_file = os.path.join(VAULT_DIR, now.strftime("%Y-%m-%d") + ".md")
     if not os.path.exists(day_file):
         head = ["# 教务处简报 %s" % now.strftime("%Y-%m-%d"), "",
@@ -432,7 +472,7 @@ def main():
         seen_titles[i["title"] + "|" + i["date"]] = 1
     state["seen"] = seen
     state["seen_titles"] = seen_titles
-    state["last_run"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    state["last_run"] = now_cn().strftime("%Y-%m-%d %H:%M:%S")
     state["columns_ok"] = ok_columns
     save_json(STATE_PATH, state)
 
@@ -440,7 +480,18 @@ def main():
         log("基线已更新: 已记录 %d 条历史条目。" % len(seen))
         return 0
 
-    report = build_report(new_items, first_run, ok_columns)
+    # 最近发布的条目（本次无新增时也列几条，让人知道监控还活着）
+    recent, _rk = [], set()
+    for i in sorted(all_items, key=lambda x: x["date"] or "", reverse=True):
+        k = i["title"] + "|" + i["date"]
+        if k in _rk:
+            continue
+        _rk.add(k)
+        recent.append(i)
+        if len(recent) >= 8:
+            break
+
+    report = build_report(new_items, first_run, ok_columns, recent)
     if errors:
         report += NL + "⚠️ %d 个栏目抓取失败，下次会自动重试。" % len(errors) + NL
     if not (dry or first_run):
@@ -450,20 +501,20 @@ def main():
             log("简报已写入: %s" % out_path)
         elif not no_vault:
             log("简报已写入: %s" % write_vault(report))
-    if new_items and not (dry or first_run or no_push):
-        # 免费推送渠道的卡片只显示标题, 所以把最关键的一条写进标题里
-        slot = "早报" if datetime.now().hour < 12 else "晚报"
-        top = sorted(new_items, key=lambda x: 0 if is_relevant(x) else 1)[0]
-        prefix = "教务处%s：%d条｜" % (slot, len(new_items))
-        budget = 32 - len(prefix)   # 接口要求 title 最长 32 字
-        head = top["title"]
-        if budget > 1 and len(head) > budget:
-            head = head[:budget - 1] + "…"
-        if budget <= 0:
-            title = prefix[:32]
+    # 每个时段（早报/晚报）只推一次：GitHub 的定时任务会延迟，同一天可能跑很多次，
+    # 靠 state.json 里的 sent_slots 去重，所以哪一次先跑成功就由哪一次发。
+    today_key, slot_label = slot_of(now_cn())
+    if not (dry or first_run or no_push):
+        sent_slots = state.get("sent_slots", {})
+        if today_key in sent_slots:
+            log("本时段（%s）已经推送过，跳过。" % today_key)
         else:
-            title = prefix + head
-        log(push_message(title, report))
+            res = push_message(build_title(slot_label, new_items, recent), report)
+            log(res)
+            if not (res.startswith("推送失败") or res.startswith("未配置")):
+                sent_slots[today_key] = now_cn().strftime("%H:%M")
+                state["sent_slots"] = sent_slots
+                save_json(STATE_PATH, state)
 
     print("")
     print("=" * 60)
