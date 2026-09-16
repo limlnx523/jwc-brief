@@ -1,15 +1,25 @@
 name: 教务处简报
 
 # 跑在 GitHub 的服务器上，不依赖自己的电脑是否开机。
-# cron 用 UTC：下面两个分别是北京时间 12:30 和 21:30。
+# GitHub 的 schedule 是「尽力而为」：会延迟几分钟到几小时，偶尔直接跳过。
+# 所以每个时段排 4 次，脚本按「时段」去重：哪个先跑成功就由哪个发，一个时段只推一次。
+# cron 用 UTC：北京时间 = UTC + 8。
 on:
   schedule:
+    # 早报时段（北京 08:30 / 10:30 / 12:30 / 14:30）
+    - cron: "30 0 * * *"
+    - cron: "30 2 * * *"
     - cron: "30 4 * * *"
+    - cron: "30 6 * * *"
+    # 晚报时段（北京 17:30 / 19:30 / 21:30 / 23:00）
+    - cron: "30 9 * * *"
+    - cron: "30 11 * * *"
     - cron: "30 13 * * *"
+    - cron: "0 15 * * *"
   workflow_dispatch:
     inputs:
       test_push:
-        description: 发一条测试推送（推送最近 1 天的条目）
+        description: 强制推一条（推送最近 1 天的条目）
         type: boolean
         default: false
 
@@ -35,13 +45,9 @@ jobs:
         env:
           JWC_PUSH_CHANNEL: serverchan
           JWC_PUSH_TOKEN: ${{ secrets.JWC_PUSH_TOKEN }}
-          JWC_MAIL_HOST: ${{ secrets.JWC_MAIL_HOST }}
-          JWC_MAIL_USER: ${{ secrets.JWC_MAIL_USER }}
-          JWC_MAIL_PASS: ${{ secrets.JWC_MAIL_PASS }}
-          JWC_MAIL_TO: ${{ secrets.JWC_MAIL_TO }}
         run: python fetch_jwc.py --no-vault --out briefing.md
 
-      - name: 测试推送（手动触发）
+      - name: 强制测试推送（手动触发）
         if: ${{ inputs.test_push }}
         env:
           JWC_PUSH_CHANNEL: serverchan
