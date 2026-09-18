@@ -129,16 +129,25 @@ def now_cn():
     return datetime.now(TZ_CN)
 
 
+MORNING_OPEN_H = 9   # 早报最早 09:30 才发
+MORNING_OPEN_M = 30
+EVENING_OPEN_H = 17  # 晚报最早 17:00 才发
+
+
 def slot_of(now):
-    """返回 (时段唯一标识, 显示名)。07:00-17:00 = 当天早报，其余 = 当天晚报；
-    凌晨 0-7 点归到前一天的晚报（GitHub 跑晚了几小时、跨过午夜时不会算错日期）。
-    每个时段只推一次，靠这个标识去重，所以哪一次先跑成功就由哪一次发。"""
-    if now.hour < 7:
+    """返回 (时段唯一标识, 显示名)，按脚本**实际执行的那一刻**判断：
+      09:30-17:00  -> 当天早报
+      17:00 之后   -> 当天晚报
+      00:00-09:30  -> 还属于前一天的晚报（GitHub 把任务拖到凌晨/清晨执行时，
+                      不会误发一条“早报”，也不会在清晨打扰用户）
+    每个时段只推一次，靠这个标识去重，所以哪个触发点先跑成功就由哪个发。"""
+    d = now.strftime("%Y-%m-%d")
+    if now.hour >= EVENING_OPEN_H:
+        return d + "-evening", "晚报"
+    if now.hour < MORNING_OPEN_H or (now.hour == MORNING_OPEN_H and now.minute < MORNING_OPEN_M):
         prev = (now - timedelta(days=1)).strftime("%Y-%m-%d")
         return prev + "-evening", "晚报"
-    if now.hour < 17:
-        return now.strftime("%Y-%m-%d") + "-morning", "早报"
-    return now.strftime("%Y-%m-%d") + "-evening", "晚报"
+    return d + "-morning", "早报"
 
 # 与本人学业规划直接相关的关键词 (命中则放到简报最前面)
 KEYWORDS = [
