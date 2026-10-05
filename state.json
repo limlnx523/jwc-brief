@@ -1,6 +1,6 @@
 {
- "columns_ok": 62,
- "last_run": "2026-10-05 17:53:36",
+ "columns_ok": 80,
+ "last_run": "2026-10-05 18:51:29",
  "seen": {
   "http://10.1.70.12/_s111/2021/0519/c4330a359114/page.psp": {
    "column": "教学成果",
@@ -6358,12 +6358,12 @@
    "title": "浙江师范大学交换生期末考试课程成绩评定申请表"
   },
   "https://jwc.zjnu.edu.cn/_upload/article/files/3c/ff/6ec6dcaf44ffbc3500c5c0acbddf/42bf7d40-000b-4ed8-abbe-53d45cc61734.pdf": {
-   "column": "教学质量与监控",
+   "column": "教学督导",
    "date": "2020-01-07",
    "title": "督导通讯第69期"
   },
   "https://jwc.zjnu.edu.cn/_upload/article/files/57/8d/a26360f2426d81404f38688b2090/9d659f1d-cea7-4a53-9b44-d17234e4b52b.pdf": {
-   "column": "教学质量与监控",
+   "column": "教学督导",
    "date": "2020-01-07",
    "title": "督导通讯第67期"
   },
@@ -6378,7 +6378,7 @@
    "title": "浙江师范大学A类学科竞赛项目（入库）申报表"
   },
   "https://jwc.zjnu.edu.cn/_upload/article/files/93/db/a98a6e4148ffb6c293d7abf3ee6a/f5daa75e-2c2f-4437-89f8-9884908654aa.pdf": {
-   "column": "教学质量与监控",
+   "column": "教学督导",
    "date": "2020-01-07",
    "title": "督导通讯第64期"
   },
@@ -6398,7 +6398,7 @@
    "title": "浙江师范大学交换生课程延迟补（缓）考申请表"
   },
   "https://jwc.zjnu.edu.cn/_upload/article/files/e6/ab/8a2578a440a8a2c9ea905ca20b81/9515337d-bf1a-443c-82ac-121fea129636.pdf": {
-   "column": "教学质量与监控",
+   "column": "教学督导",
    "date": "2020-01-07",
    "title": "督导通讯第66期"
   },
@@ -6408,12 +6408,12 @@
    "title": "浙江师范大学本科交换生交换期间保留校内课程修读申请表"
   },
   "https://jwc.zjnu.edu.cn/_upload/article/files/f4/5f/23a601034eaeba7b3acd3385d2dd/734f3bd0-464d-45f8-8ae4-51f1984d2a80.pdf": {
-   "column": "教学质量与监控",
+   "column": "教学督导",
    "date": "2020-01-07",
    "title": "督导通讯第65期"
   },
   "https://jwc.zjnu.edu.cn/_upload/article/files/f8/5f/a28ec53a4566b7297c54a52181a2/a09747cf-2e2d-41d4-a936-2f62b5678fca.pdf": {
-   "column": "教学质量与监控",
+   "column": "教学督导",
    "date": "2020-01-07",
    "title": "督导通讯第68期"
   }
