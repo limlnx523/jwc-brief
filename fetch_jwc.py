@@ -281,15 +281,43 @@ def join_lines(lines):
     return NL.join(lines)
 
 
+def short_name(title):
+    """把通知标题压成适合放进推送标题的短名（微信卡片只显示标题，尽量多塞信息）。"""
+    t = title.strip()
+    t = re.sub(r"^关于", "", t)
+    t = re.sub(r"^(做好|开展|公布|组织|召开|启动|举行|落实)", "", t)
+    t = re.sub(r"^20\d{2}[-—－]?20\d{2}学年", "", t)
+    t = re.sub(r"^第[一二三四]学期", "", t)
+    t = re.sub(r"^20\d{2}级(新生|学生)?", "", t)
+    t = re.sub(r"^20\d{2}(年|年度)?(上|下)?半年?", "", t)
+    t = re.sub(r"(工作的通知|通知|公告|安排|意见|办法)$", "", t)
+    t = t.replace("《", "").replace("》", "")
+    return t.strip("——-· 　")
+
+
 def build_title(slot_label, new_items, recent):
     """免费推送渠道的卡片只显示标题，所以把最关键那条写进标题（≤ 32 字）。"""
     if new_items:
         prefix = "教务处%s：%d条｜" % (slot_label, len(new_items))
-        top = sorted(new_items, key=lambda x: 0 if is_relevant(x) else 1)[0]
-        head = top["title"]
+        tops = sorted(new_items, key=lambda x: 0 if is_relevant(x) else 1)
+        names = []
+        for it in tops:
+            nm = short_name(it["title"])
+            if nm and nm not in names:
+                names.append(nm)
+            if len(names) >= 3:
+                break
+        head = ""
+        for nm in names:
+            cand = nm if not head else head + "、" + nm
+            if len(cand) > 23:   # 标题总长上限 32，前缀约占 9 字
+                if not head and 23 > 1:
+                    head = cand[:22] + "…"
+                break
+            head = cand
     else:
         prefix = "教务处%s：无新增｜" % slot_label
-        head = recent[0]["title"] if recent else ""
+        head = short_name(recent[0]["title"]) if recent else ""
     budget = 32 - len(prefix)
     if budget <= 0:
         return prefix[:32]
